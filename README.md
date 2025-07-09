@@ -1,4 +1,4 @@
-# Unified Backend on PocketBase — Self-Hosted & Streamlined
+# Unified Backend on PocketBase — Self-Hosted on Raspberry Pi 5
 
 All backend services for my applications are powered by **[PocketBase](https://pocketbase.io/)** — a lightweight, blazing-fast, all-in-one backend written in Go.
 
