@@ -19,7 +19,7 @@ jobs:
       - name: Build
         run: |
           go mod tidy
-          go build -o pocketbase .
+          GOOS=linux GOARCH=arm64 go build -o pocketbase .
 
       - name: Configure SSH
         run: |
