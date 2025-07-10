@@ -46,4 +46,7 @@ jobs:
       - name: Deploy to Raspberry Pi
         run: |
           scp pocketbase pi:/usr/local/bin/pocketbase
-        
+
+      - name: Restart PocketBase
+        run: |
+          ssh pi "sudo systemctl restart pocketbase"
