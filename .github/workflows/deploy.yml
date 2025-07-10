@@ -43,10 +43,14 @@ jobs:
           chmod +x cloudflared
           sudo mv cloudflared /usr/local/bin/
 
+      - name: Stop PocketBase
+        run: |
+          ssh pi "sudo systemctl stop pocketbase"
+
       - name: Deploy to Raspberry Pi
         run: |
           scp pocketbase pi:/usr/local/bin/pocketbase
 
-      - name: Restart PocketBase
+      - name: Start PocketBase
         run: |
-          ssh pi "sudo systemctl restart pocketbase"
+          ssh pi "sudo systemctl start pocketbase"
