@@ -1,0 +1,49 @@
+name: Deploy Backend to Raspberry Pi
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.5'
+
+      - name: Build
+        run: |
+          go mod tidy
+          go build -o pocketbase .
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PI_SSH_KEY }}" > ~/.ssh/pi_id_ed25519
+          chmod 600 ~/.ssh/pi_id_ed25519
+          
+          cat <<EOF > ~/.ssh/config
+          Host pi
+            HostName localhost
+            User ${{ secrets.PI_USER }}
+            IdentityFile ~/.ssh/pi_id_ed25519
+            UserKnownHostsFile=/dev/null
+            StrictHostKeyChecking no
+            ProxyCommand cloudflared access ssh --id ${{ secrets.CF_ACCESS_CLIENT_ID }} --secret ${{ secrets.CF_ACCESS_CLIENT_SECRET }} --hostname ${{ secrets.PI_HOST }}
+          EOF
+
+      - name: Install cloudflared
+        run: |
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
+      - name: Deploy to Raspberry Pi
+        run: |
+          scp pocketbase pi:/usr/local/bin/pocketbase
+        
