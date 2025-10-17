@@ -42,14 +42,18 @@ jobs:
           curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
           chmod +x cloudflared
           sudo mv cloudflared /usr/local/bin/
+          
+      - name: Deploy file to Raspberry Pi
+        run: |
+          scp pocketbase pi:/usr/local/bin/pocketbase_temp
 
       - name: Stop PocketBase
         run: |
           ssh pi "sudo systemctl stop pocketbase"
 
-      - name: Deploy to Raspberry Pi
+      - name: Replace PocketBase binary
         run: |
-          scp pocketbase pi:/usr/local/bin/pocketbase
+          ssh pi "sudo mv /usr/local/bin/pocketbase_temp /usr/local/bin/pocketbase && sudo chmod +x /usr/local/bin/pocketbase"
 
       - name: Start PocketBase
         run: |
