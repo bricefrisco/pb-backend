@@ -150,11 +150,6 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 		})
 	}
 
-	allianceData := mapAllianceData(allianceInputData, allKills)
-	for _, data := range allianceData {
-		fmt.Printf("Alliance: %+v\n", data)
-	}
-
 	guildInputData := make([]*GuildInputData, 0)
 	for _, guild := range battle.Guilds {
 		guildInputData = append(guildInputData, &GuildInputData{
@@ -165,17 +160,11 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 		})
 	}
 
+	allianceData := mapAllianceData(allianceInputData, allKills)
 	guildData := mapGuildData(guildInputData, allKills)
-	for _, data := range guildData {
-		fmt.Printf("Guild: %+v\n", data)
-	}
-
 	playerData := mapPlayerData(allKills)
-	for _, data := range playerData {
-		fmt.Printf("Player: %+v\n", data)
-	}
-
 	numPlayers := len(playerData)
+
 	battleRecord, err := b.mapBattle(battle, allianceData, guildData, numPlayers)
 	if err != nil {
 		return err
@@ -196,17 +185,24 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 		return err
 	}
 
+	kills, err := b.mapKills(battle.Id, allKills)
+	if err != nil {
+		return err
+	}
+
 	queue, err := b.app.FindRecordById("battle_queue", queueId)
 	if err != nil {
 		return err
 	}
 
 	err = b.app.RunInTransaction(func(txApp core.App) error {
+		fmt.Println("Saving battle record...")
 		err = txApp.Save(battleRecord)
 		if err != nil {
 			return err
 		}
 
+		fmt.Println("Saving", len(allianceRecords), "alliance records...")
 		for _, record := range allianceRecords {
 			err = txApp.Save(record)
 			if err != nil {
@@ -214,6 +210,7 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 			}
 		}
 
+		fmt.Println("Saving", len(guildRecords), "guild records...")
 		for _, record := range guildRecords {
 			err = txApp.Save(record)
 			if err != nil {
@@ -221,7 +218,16 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 			}
 		}
 
+		fmt.Println("Saving", len(playerRecords), "player records...")
 		for _, record := range playerRecords {
+			err = txApp.Save(record)
+			if err != nil {
+				return err
+			}
+		}
+
+		fmt.Println("Saving", len(kills), "kill records...")
+		for _, record := range kills {
 			err = txApp.Save(record)
 			if err != nil {
 				return err
@@ -355,5 +361,41 @@ func (b *Battleboards) mapPlayers(battleId int, playerData []*PlayerData) ([]*co
 		record.Set("healing", player.Healing)
 		records = append(records, record)
 	}
+	return records, nil
+}
+
+func (b *Battleboards) mapKills(battleId int, kills []KillsResponse) ([]*core.Record, error) {
+	collection, err := b.app.FindCollectionByNameOrId("battle_kills")
+	if err != nil {
+		return nil, err
+	}
+
+	records := make([]*core.Record, 0, len(kills))
+	for _, kill := range kills {
+		record := core.NewRecord(collection)
+		record.Set("battle", battleId)
+		record.Set("region", "americas")
+		record.Set("timestamp", kill.Timestamp)
+
+		record.Set("killerId", kill.Killer.Id)
+		record.Set("killerName", kill.Killer.Name)
+		record.Set("killerAllianceId", kill.Killer.AllianceId)
+		record.Set("killerAllianceName", kill.Killer.AllianceName)
+		record.Set("killerGuildId", kill.Killer.GuildId)
+		record.Set("killerGuildName", kill.Killer.GuildName)
+		record.Set("killerWeapon", kill.Killer.Equipment.MainHand.Type)
+		record.Set("killerAverageIp", kill.Killer.AverageItemPower)
+
+		record.Set("victimId", kill.Victim.Id)
+		record.Set("victimName", kill.Victim.Name)
+		record.Set("victimAllianceId", kill.Victim.AllianceId)
+		record.Set("victimAllianceName", kill.Victim.AllianceName)
+		record.Set("victimGuildId", kill.Victim.GuildId)
+		record.Set("victimGuildName", kill.Victim.GuildName)
+		record.Set("victimWeapon", kill.Victim.Equipment.MainHand.Type)
+		record.Set("victimAverageIp", kill.Victim.AverageItemPower)
+		records = append(records, record)
+	}
+
 	return records, nil
 }
