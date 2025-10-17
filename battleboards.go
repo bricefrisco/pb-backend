@@ -33,33 +33,32 @@ func (b *Battleboards) FetchNewBattles() error {
 		return err
 	}
 
-	battles, err := b.albionAPI.FetchRecentBattles(0, 51)
-	if err != nil {
-		return err
-	}
-
 	collection, err := b.app.FindCollectionByNameOrId("battle_queue")
 	if err != nil {
 		return err
 	}
 
-	// TODO: Pagination
-	// at the moment, this will run on a CRON every minute
-	// and we're assuming that the number of battles per minute is low enough to not require pagination
 	reachedLastBattle := false
-	records := make([]*core.Record, 0, len(battles))
-	for _, battle := range battles {
-		if strconv.Itoa(battle.Id) == lastBattleId {
-			fmt.Println("Reached last fetched battle:", lastBattleId)
-			reachedLastBattle = true
-			break // We've already processed up to this battle
-		}
-		record := mapBattleQueue(collection, battle)
-		records = append(records, record)
-	}
+	iteration := 0
+	records := make([]*core.Record, 0)
 
-	if !reachedLastBattle {
-		fmt.Println("Warning: Did not reach last fetched battle. Some battles will go unprocessed!")
+	for !reachedLastBattle && iteration < 100 {
+		battles, err := b.albionAPI.FetchRecentBattles(iteration*50, 50)
+		if err != nil {
+			return err
+		}
+
+		for _, battle := range battles {
+			if strconv.Itoa(battle.Id) == lastBattleId {
+				fmt.Println("Reached last fetched battle:", lastBattleId)
+				reachedLastBattle = true
+				break // We've already processed up to this battle
+			}
+			record := mapBattleQueue(collection, battle)
+			records = append(records, record)
+		}
+
+		iteration += 1
 	}
 
 	if len(records) == 0 {
