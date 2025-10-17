@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
-	"sort"
 	"strconv"
 )
 
@@ -20,16 +19,7 @@ func NewBattleboards(app *pocketbase.PocketBase) *Battleboards {
 	}
 }
 
-//func (b *Battleboards) processBattles(battles []BattleResponse) error {
-//	// TODO: A queue would be ideal here
-//	for _, battle := range battles {
-//		if err := b.processBattle(battle); err != nil {
-//			return err
-//		}
-//	}
-//}
-
-func (b *Battleboards) TempTest() error {
+func (b *Battleboards) EnqueueNewBattles() error {
 	lastBattleId, err := b.getLastBattleEnqueued()
 	fmt.Println("Last enqueued battle ID:", lastBattleId)
 	if err != nil {
@@ -77,6 +67,31 @@ func (b *Battleboards) TempTest() error {
 	return err
 }
 
+func (b *Battleboards) ProcessBattlesInQueue() error {
+	enqueuedBattlesToProcess, err := b.app.FindRecordsByFilter(
+		"battle_queue",
+		"status = 'queued' || status = 'failed'",
+		"-startTime",
+		1,
+		0)
+	if err != nil {
+		return err
+	}
+
+	for _, record := range enqueuedBattlesToProcess {
+		// TODO: Multithreading
+		queueId := record.Get("id").(string)
+		battleId := record.Get("battleId").(string)
+		err = b.processBattle(queueId, battleId)
+		if err != nil {
+			fmt.Println("Error processing battle", battleId, ":", err)
+			continue
+		}
+	}
+
+	return nil
+}
+
 func (b *Battleboards) getLastBattleEnqueued() (string, error) {
 	lastBattleInQueue, err := b.app.FindRecordsByFilter(
 		"battle_queue",
@@ -105,168 +120,194 @@ func mapBattleQueue(collection *core.Collection, battle BattleResponse) *core.Re
 	return record
 }
 
-func (b *Battleboards) processBattle(battle BattleResponse) error {
+func (b *Battleboards) processBattle(queueId string, battleId string) error {
+	fmt.Println("Processing battle:", battleId)
+
+	battle, err := b.albionAPI.FetchBattle(battleId)
+	if err != nil {
+		return err
+	}
+
 	limit := 50
 	offset := 0
 
-	allKills := make([]KillsResponse, 0, battle.TotalKills)
+	allKills := make([]KillsResponse, 0)
 	for offset < battle.TotalKills {
 		kills, err := b.albionAPI.FetchRecentKills(battle.Id, offset, limit)
 		if err != nil {
 			return err
 		}
 
-		fmt.Println("Kills length", len(kills))
-
 		allKills = append(allKills, kills...)
 		offset += limit
 	}
 
-	fmt.Println("battle kills: ", battle.TotalKills)
-	fmt.Println("Allkills length: ", len(allKills))
+	allianceInputData := make([]*AllianceInputData, 0)
+	for _, alliance := range battle.Alliances {
+		allianceInputData = append(allianceInputData, &AllianceInputData{
+			Id:   alliance.Id,
+			Name: alliance.Name,
+		})
+	}
 
-	//var battleParticipantsAlliances = make([]core.Record, 0, len(battle.Alliances))
-	//var battleParticipantsGuilds = make([]core.Record, 0, len(battle.Guilds))
-	//var battleParticipantsPlayers = make([]core.Record, 0, len(battle.Players))
-	//
-	//err := b.app.RunInTransaction(func(txApp core.App) error {
-	//	return nil
-	//})
+	allianceData := mapAllianceData(allianceInputData, allKills)
+	for _, data := range allianceData {
+		fmt.Printf("Alliance: %+v\n", data)
+	}
 
-	battleRecord, err := b.mapBattle(battle, allKills)
+	guildInputData := make([]*GuildInputData, 0)
+	for _, guild := range battle.Guilds {
+		guildInputData = append(guildInputData, &GuildInputData{
+			Id:           guild.Id,
+			Name:         guild.Name,
+			AllianceId:   guild.AllianceId,
+			AllianceName: guild.AllianceName,
+		})
+	}
+
+	guildData := mapGuildData(guildInputData, allKills)
+	for _, data := range guildData {
+		fmt.Printf("Guild: %+v\n", data)
+	}
+
+	numPlayers := getTotalPlayers(allKills)
+
+	battleRecord, err := b.mapBattle(battle, allianceData, guildData, numPlayers)
 	if err != nil {
 		return err
 	}
 
-	err = b.app.Save(battleRecord)
+	allianceRecords, err := b.mapAlliances(battle.Id, allianceData)
 	if err != nil {
-		if err.Error() != "id: Value must be unique." {
+		return err
+	}
+
+	guildRecords, err := b.mapGuilds(battle.Id, guildData)
+	if err != nil {
+		return err
+	}
+
+	queue, err := b.app.FindRecordById("battle_queue", queueId)
+	if err != nil {
+		return err
+	}
+
+	err = b.app.RunInTransaction(func(txApp core.App) error {
+		err = txApp.Save(battleRecord)
+		if err != nil {
 			return err
 		}
+
+		for _, record := range allianceRecords {
+			err = txApp.Save(record)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, record := range guildRecords {
+			err = txApp.Save(record)
+			if err != nil {
+				return err
+			}
+		}
+
+		queue.Set("status", "processed")
+		err = txApp.Save(queue)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("Error processing battle %s: %v\n", battleId, err)
+		queue.Set("status", "failed")
+		err = b.app.Save(queue)
+		if err != nil {
+			// Unlikely, but the status would be left in the 'processing' state
+			fmt.Println("Also failed to update battle queue status to 'failed':", err)
+			return err
+		}
+	} else {
+		fmt.Println("Successfully processed battle:", battleId)
 	}
 
 	return nil
 }
 
-type count struct {
-	Name  string
-	Count int
-}
-
-func (b *Battleboards) mapBattle(battle BattleResponse, allKills []KillsResponse) (*core.Record, error) {
+func (b *Battleboards) mapBattle(battle *BattleResponse, allianceData []*AllianceData, guildData []*GuildData, numPlayers int) (*core.Record, error) {
 	collection, err := b.app.FindCollectionByNameOrId("battles")
 	if err != nil {
 		return nil, err
 	}
 	record := core.NewRecord(collection)
 	record.Set("id", battle.Id)
-	record.Set("region", "Americas")
+	record.Set("region", "americas")
 	record.Set("startTime", battle.StartTime)
 	record.Set("endTime", battle.EndTime)
 	record.Set("totalFame", battle.TotalFame)
 	record.Set("totalKills", battle.TotalKills)
-	record.Set("numPlayers", len(battle.Players))
+	record.Set("numPlayers", numPlayers)
 
-	guilds := getTopGuildsByParticipation(allKills)
-	record.Set("guilds", guilds)
-
-	alliances := getTopAlliancesByParticipation(allKills)
+	alliances := getTopAlliancesByParticipation(allianceData)
 	record.Set("alliances", alliances)
+
+	guilds := getTopGuildsByParticipation(guildData)
+	record.Set("guilds", guilds)
 
 	return record, nil
 }
 
-func getTopGuildsByParticipation(allKills []KillsResponse) string {
-	guilds := mapGuildMembers(allKills)
-	guildCounts := make([]count, 0, len(guilds))
-	for name, members := range guilds {
-		guildCounts = append(guildCounts, count{
-			Name:  name,
-			Count: len(members),
-		})
-	}
-	topGuilds := getTopNCounts(guildCounts, 10)
-	topGuildsStr := ""
-	for _, guild := range topGuilds {
-		if guild.Name == "" {
-			continue
-		}
-		if topGuildsStr != "" {
-			topGuildsStr += ", "
-		}
-		topGuildsStr += guild.Name
+func (b *Battleboards) mapAlliances(battleId int, allianceData []*AllianceData) ([]*core.Record, error) {
+	collection, err := b.app.FindCollectionByNameOrId("battle_participants_alliances")
+	if err != nil {
+		return nil, err
 	}
 
-	return topGuildsStr
+	records := make([]*core.Record, 0, len(allianceData))
+	for _, alliance := range allianceData {
+		record := core.NewRecord(collection)
+		record.Set("battle", battleId)
+		record.Set("region", "americas")
+		record.Set("allianceId", alliance.Id)
+		record.Set("allianceName", alliance.Name)
+		record.Set("kills", alliance.Kills)
+		record.Set("killFame", alliance.KillFame)
+		record.Set("deaths", alliance.Deaths)
+		record.Set("deathFame", alliance.DeathFame)
+		record.Set("players", alliance.Players)
+		record.Set("averageIp", alliance.AverageIp)
+		records = append(records, record)
+	}
+
+	return records, nil
 }
 
-func getTopAlliancesByParticipation(allKills []KillsResponse) string {
-	alliances := mapAllianceMembers(allKills)
-	allianceCounts := make([]count, 0, len(alliances))
-	for name, members := range alliances {
-		allianceCounts = append(allianceCounts, count{
-			Name:  name,
-			Count: len(members),
-		})
-	}
-	topAlliances := getTopNCounts(allianceCounts, 10)
-	topAlliancesStr := ""
-	for _, alliance := range topAlliances {
-		if alliance.Name == "" {
-			continue
-		}
-
-		if topAlliancesStr != "" {
-			topAlliancesStr += ", "
-		}
-		topAlliancesStr += alliance.Name
+func (b *Battleboards) mapGuilds(battleId int, guildData []*GuildData) ([]*core.Record, error) {
+	collection, err := b.app.FindCollectionByNameOrId("battle_participants_guilds")
+	if err != nil {
+		return nil, err
 	}
 
-	return topAlliancesStr
-}
-
-func getTopNCounts(counts []count, n int) []count {
-	sort.Slice(counts, func(i, j int) bool {
-		return counts[i].Count > counts[j].Count
-	})
-
-	fmt.Println(counts)
-
-	if len(counts) <= n {
-		n = len(counts) - 1
+	records := make([]*core.Record, 0, len(guildData))
+	for _, guild := range guildData {
+		record := core.NewRecord(collection)
+		record.Set("battle", battleId)
+		record.Set("region", "americas")
+		record.Set("guildId", guild.Id)
+		record.Set("guildName", guild.Name)
+		record.Set("allianceId", guild.AllianceId)
+		record.Set("allianceName", guild.AllianceName)
+		record.Set("kills", guild.Kills)
+		record.Set("killFame", guild.KillFame)
+		record.Set("deaths", guild.Deaths)
+		record.Set("deathFame", guild.DeathFame)
+		record.Set("players", guild.Players)
+		record.Set("averageIp", guild.AverageIp)
+		records = append(records, record)
 	}
 
-	return counts[:n+1]
-}
-
-func mapGuildMembers(allKills []KillsResponse) map[string]map[string]KillsPlayerResponse {
-	guilds := make(map[string]map[string]KillsPlayerResponse)
-	for _, kills := range allKills {
-		for _, player := range append(kills.GroupMembers, kills.Participants...) {
-			if player.GuildName == "" {
-				continue
-			}
-			if _, exists := guilds[player.GuildName]; !exists {
-				guilds[player.GuildName] = make(map[string]KillsPlayerResponse)
-			}
-			guilds[player.GuildName][player.Name] = player
-		}
-	}
-	return guilds
-}
-
-func mapAllianceMembers(allKills []KillsResponse) map[string]map[string]KillsPlayerResponse {
-	alliances := make(map[string]map[string]KillsPlayerResponse)
-	for _, kills := range allKills {
-		for _, player := range append(kills.GroupMembers, kills.Participants...) {
-			if player.AllianceName == "" {
-				continue
-			}
-			if _, exists := alliances[player.AllianceName]; !exists {
-				alliances[player.AllianceName] = make(map[string]KillsPlayerResponse)
-			}
-			alliances[player.AllianceName][player.Name] = player
-		}
-	}
-	return alliances
+	return records, nil
 }

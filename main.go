@@ -34,25 +34,27 @@ func main() {
 	backend := NewBackend()
 
 	backend.app.OnServe().BindFunc(func(e *core.ServeEvent) error {
-		err := backend.cron.Add("enqueue_battles", "* * * * *", func() {
-			fmt.Println("Running cron job: enqueue_battles")
-			err := backend.battleboards.TempTest()
-			if err != nil {
-				fmt.Println("Error with cron job enqueue_battles:", err)
-			}
-			fmt.Println("Finished cron job: enqueue_battles")
-		})
-		if err != nil {
-			return err
-		}
+		//err := backend.cron.Add("enqueue_battles", "* * * * *", func() {
+		//	fmt.Println("Running cron job: enqueue_battles")
+		//	err := backend.battleboards.EnqueueNewBattles()
+		//	if err != nil {
+		//		fmt.Println("Error with cron job enqueue_battles:", err)
+		//	}
+		//	fmt.Println("Finished cron job: enqueue_battles")
+		//})
+		//if err != nil {
+		//	return err
+		//}
 
-		err = backend.battleboards.TempTest()
-		if err != nil {
-			return err
-		}
+		//err := backend.battleboards.ProcessBattlesInQueue()
+		//if err != nil {
+		//	fmt.Println("Error starting battle processing:", err)
+		//	return err
+		//}
 
 		return e.Next()
 	})
 
+	fmt.Println("Starting backend...")
 	backend.Run()
 }

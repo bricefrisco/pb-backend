@@ -68,19 +68,20 @@ type KillsPlayerResponse struct {
 	GuildName          string                 `json:"GuildName"`
 	KillFame           int                    `json:"KillFame"`
 	DeathFame          int                    `json:"DeathFame"`
-	AverageItemPower   float32                `json:"AverageItemPower"`
-	DamageDone         float32                `json:"DamageDone"`
-	SupportHealingDone float32                `json:"SupportHealingDone"`
+	AverageItemPower   float64                `json:"AverageItemPower"`
+	DamageDone         float64                `json:"DamageDone"`
+	SupportHealingDone float64                `json:"SupportHealingDone"`
 	Equipment          KillsEquipmentResponse `json:"Equipment"`
 }
 
 type KillsResponse struct {
-	BattleId     int                   `json:"BattleId"`
-	Timestamp    time.Time             `json:"Timestamp"`
-	Killer       KillsPlayerResponse   `json:"Killer"`
-	Victim       KillsPlayerResponse   `json:"Victim"`
-	GroupMembers []KillsPlayerResponse `json:"GroupMembers"`
-	Participants []KillsPlayerResponse `json:"Participants"`
+	BattleId            int                   `json:"BattleId"`
+	Timestamp           time.Time             `json:"Timestamp"`
+	Killer              KillsPlayerResponse   `json:"Killer"`
+	Victim              KillsPlayerResponse   `json:"Victim"`
+	TotalVictimKillFame int                   `json:"TotalVictimKillFame"`
+	GroupMembers        []KillsPlayerResponse `json:"GroupMembers"`
+	Participants        []KillsPlayerResponse `json:"Participants"`
 }
 
 type AlbionAPI struct {
@@ -106,6 +107,15 @@ func (a *AlbionAPI) FetchRecentBattles(offset, limit int) ([]BattleResponse, err
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (a *AlbionAPI) FetchBattle(battleId string) (*BattleResponse, error) {
+	url := fmt.Sprintf("%s/battles/%s", a.baseUrl, battleId)
+	var resp BattleResponse
+	if err := a.makeHttpGETCall(url, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
 }
 
 func (a *AlbionAPI) FetchRecentKills(battleId, offset, limit int) ([]KillsResponse, error) {
