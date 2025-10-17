@@ -79,7 +79,7 @@ func (b *Battleboards) ProcessBattlesInQueue() error {
 	}
 
 	for _, record := range enqueuedBattlesToProcess {
-		// TODO: Multithreading
+		// TODO: Multithreading?
 		queueId := record.Get("id").(string)
 		battleId := record.Get("battleId").(string)
 		err = b.processBattle(queueId, battleId)
@@ -170,8 +170,12 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 		fmt.Printf("Guild: %+v\n", data)
 	}
 
-	numPlayers := getTotalPlayers(allKills)
+	playerData := mapPlayerData(allKills)
+	for _, data := range playerData {
+		fmt.Printf("Player: %+v\n", data)
+	}
 
+	numPlayers := len(playerData)
 	battleRecord, err := b.mapBattle(battle, allianceData, guildData, numPlayers)
 	if err != nil {
 		return err
@@ -183,6 +187,11 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 	}
 
 	guildRecords, err := b.mapGuilds(battle.Id, guildData)
+	if err != nil {
+		return err
+	}
+
+	playerRecords, err := b.mapPlayers(battle.Id, playerData)
 	if err != nil {
 		return err
 	}
@@ -206,6 +215,13 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 		}
 
 		for _, record := range guildRecords {
+			err = txApp.Save(record)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, record := range playerRecords {
 			err = txApp.Save(record)
 			if err != nil {
 				return err
@@ -309,5 +325,35 @@ func (b *Battleboards) mapGuilds(battleId int, guildData []*GuildData) ([]*core.
 		records = append(records, record)
 	}
 
+	return records, nil
+}
+
+func (b *Battleboards) mapPlayers(battleId int, playerData []*PlayerData) ([]*core.Record, error) {
+	collection, err := b.app.FindCollectionByNameOrId("battle_participants_players")
+	if err != nil {
+		return nil, err
+	}
+
+	records := make([]*core.Record, 0, len(playerData))
+	for _, player := range playerData {
+		record := core.NewRecord(collection)
+		record.Set("battle", battleId)
+		record.Set("region", "americas")
+		record.Set("playerId", player.Id)
+		record.Set("playerName", player.Name)
+		record.Set("allianceId", player.AllianceId)
+		record.Set("allianceName", player.AllianceName)
+		record.Set("guildId", player.GuildId)
+		record.Set("guildName", player.GuildName)
+		record.Set("kills", player.Kills)
+		record.Set("killFame", player.KillFame)
+		record.Set("deaths", player.Deaths)
+		record.Set("deathFame", player.DeathFame)
+		record.Set("weaponName", player.WeaponName)
+		record.Set("averageIp", player.AverageIp)
+		record.Set("damage", player.Damage)
+		record.Set("healing", player.Healing)
+		records = append(records, record)
+	}
 	return records, nil
 }
