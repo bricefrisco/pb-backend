@@ -34,23 +34,31 @@ func main() {
 	backend := NewBackend()
 
 	backend.app.OnServe().BindFunc(func(e *core.ServeEvent) error {
-		//err := backend.cron.Add("enqueue_battles", "* * * * *", func() {
-		//	fmt.Println("Running cron job: enqueue_battles")
-		//	err := backend.battleboards.EnqueueNewBattles()
-		//	if err != nil {
-		//		fmt.Println("Error with cron job enqueue_battles:", err)
-		//	}
-		//	fmt.Println("Finished cron job: enqueue_battles")
-		//})
-		//if err != nil {
-		//	return err
-		//}
+		err := backend.cron.Add("fetch_new_battles", "* * * * *", func() {
+			fmt.Println("Running cron job: fetch_new_battles")
+			err := backend.battleboards.FetchNewBattles()
+			if err != nil {
+				fmt.Println("Error with cron job enqueue_battles:", err)
+			}
+			fmt.Println("Finished cron job: fetch_new_battles")
+		})
 
-		//err := backend.battleboards.ProcessBattlesInQueue()
-		//if err != nil {
-		//	fmt.Println("Error starting battle processing:", err)
-		//	return err
-		//}
+		if err != nil {
+			fmt.Println("Failed to add cron job:", err)
+		}
+
+		err = backend.cron.Add("enqueue_new_battles", "* * * * *", func() {
+			fmt.Println("Running cron job: enqueue_new_battles")
+			err = backend.battleboards.EnqueueNewBattles()
+			if err != nil {
+				fmt.Println("Error with cron job enqueue_new_battles:", err)
+			}
+			fmt.Println("Finished cron job: enqueue_new_battles")
+		})
+
+		go func() {
+			backend.battleboards.ProcessQueue()
+		}()
 
 		return e.Next()
 	})

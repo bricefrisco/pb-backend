@@ -7,21 +7,28 @@ import (
 	"strconv"
 )
 
+type queueItem struct {
+	queueId  string
+	battleId string
+}
+
 type Battleboards struct {
 	albionAPI *AlbionAPI
 	app       *pocketbase.PocketBase
+	queue     chan queueItem
 }
 
 func NewBattleboards(app *pocketbase.PocketBase) *Battleboards {
 	return &Battleboards{
 		app:       app,
 		albionAPI: NewAlbionAPI(),
+		queue:     make(chan queueItem, 100),
 	}
 }
 
-func (b *Battleboards) EnqueueNewBattles() error {
-	lastBattleId, err := b.getLastBattleEnqueued()
-	fmt.Println("Last enqueued battle ID:", lastBattleId)
+func (b *Battleboards) FetchNewBattles() error {
+	lastBattleId, err := b.getLastBattleFetched()
+	fmt.Println("Last fetched battle ID:", lastBattleId)
 	if err != nil {
 		return err
 	}
@@ -39,18 +46,24 @@ func (b *Battleboards) EnqueueNewBattles() error {
 	// TODO: Pagination
 	// at the moment, this will run on a CRON every minute
 	// and we're assuming that the number of battles per minute is low enough to not require pagination
+	reachedLastBattle := false
 	records := make([]*core.Record, 0, len(battles))
 	for _, battle := range battles {
 		if strconv.Itoa(battle.Id) == lastBattleId {
-			fmt.Println("Reached last enqueued battle:", lastBattleId)
+			fmt.Println("Reached last fetched battle:", lastBattleId)
+			reachedLastBattle = true
 			break // We've already processed up to this battle
 		}
 		record := mapBattleQueue(collection, battle)
 		records = append(records, record)
 	}
 
+	if !reachedLastBattle {
+		fmt.Println("Warning: Did not reach last fetched battle. Some battles will go unprocessed!")
+	}
+
 	if len(records) == 0 {
-		fmt.Println("No new battles to enqueue.")
+		fmt.Println("No new battles fetched.")
 		return nil
 	}
 
@@ -63,36 +76,55 @@ func (b *Battleboards) EnqueueNewBattles() error {
 		return nil
 	})
 
-	fmt.Println("Enqueued", len(records), "new battles for processing.")
+	fmt.Println("Fetched", len(records), "new battles for processing.")
 	return err
 }
 
-func (b *Battleboards) ProcessBattlesInQueue() error {
+func (b *Battleboards) EnqueueNewBattles() error {
 	enqueuedBattlesToProcess, err := b.app.FindRecordsByFilter(
 		"battle_queue",
 		"status = 'queued' || status = 'failed'",
 		"-startTime",
-		1,
+		100,
 		0)
+
 	if err != nil {
 		return err
 	}
 
-	for _, record := range enqueuedBattlesToProcess {
-		// TODO: Multithreading?
-		queueId := record.Get("id").(string)
-		battleId := record.Get("battleId").(string)
-		err = b.processBattle(queueId, battleId)
-		if err != nil {
-			fmt.Println("Error processing battle", battleId, ":", err)
-			continue
-		}
+	if len(enqueuedBattlesToProcess) == 0 {
+		fmt.Println("No battles to enqueue.")
+		return nil
 	}
+
+	fmt.Println("Enqueuing", len(enqueuedBattlesToProcess), "battles for processing...")
+	go func() {
+		for _, record := range enqueuedBattlesToProcess {
+			queueId := record.Get("id").(string)
+			battleId := record.Get("battleId").(string)
+
+			b.queue <- queueItem{
+				queueId:  queueId,
+				battleId: battleId,
+			}
+		}
+	}()
 
 	return nil
 }
 
-func (b *Battleboards) getLastBattleEnqueued() (string, error) {
+func (b *Battleboards) ProcessQueue() {
+	fmt.Println("Starting battle processing queue...")
+	for job := range b.queue {
+		err := b.processBattle(job.queueId, job.battleId)
+		if err != nil {
+			fmt.Println("Error processing battle", job.battleId, ":", err)
+			continue
+		}
+	}
+}
+
+func (b *Battleboards) getLastBattleFetched() (string, error) {
 	lastBattleInQueue, err := b.app.FindRecordsByFilter(
 		"battle_queue",
 		"",
@@ -122,6 +154,14 @@ func mapBattleQueue(collection *core.Collection, battle BattleResponse) *core.Re
 
 func (b *Battleboards) processBattle(queueId string, battleId string) error {
 	fmt.Println("Processing battle:", battleId)
+
+	queue, err := b.app.FindRecordById("battle_queue", queueId)
+	if err != nil {
+		return err
+	}
+
+	queue.Set("status", "processing")
+	err = b.app.Save(queue)
 
 	battle, err := b.albionAPI.FetchBattle(battleId)
 	if err != nil {
@@ -186,11 +226,6 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 	}
 
 	kills, err := b.mapKills(battle.Id, allKills)
-	if err != nil {
-		return err
-	}
-
-	queue, err := b.app.FindRecordById("battle_queue", queueId)
 	if err != nil {
 		return err
 	}
