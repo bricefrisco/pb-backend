@@ -436,6 +436,7 @@ func (b *Battleboards) mapPlayers(battleId int, playerData []*PlayerData) ([]*co
 		record.Set("averageIp", player.AverageIp)
 		record.Set("damage", player.Damage)
 		record.Set("healing", player.Healing)
+		record.Set("players", player.Players)
 		records = append(records, record)
 	}
 	return records, nil

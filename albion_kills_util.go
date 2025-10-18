@@ -65,6 +65,7 @@ type PlayerData struct {
 	AverageIp    float64
 	Damage       float64
 	Healing      float64
+	Players      int
 }
 
 func mapAllianceData(alliances []*AllianceInputData, allKills []KillsResponse) []*AllianceData {
@@ -162,6 +163,7 @@ func mapPlayerData(playerInputData *PlayerInputData, allKills []KillsResponse) [
 			AverageIp:    player.AverageItemPower,
 			Damage:       damage[name],
 			Healing:      healing[name],
+			Players:      len(players),
 		})
 	}
 	return result
