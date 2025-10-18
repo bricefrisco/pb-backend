@@ -2,16 +2,19 @@ package main
 
 import (
 	"sort"
+	"time"
 )
 
 type AllianceInputData struct {
-	Id   string
-	Name string
+	Id        string
+	Name      string
+	StartTime time.Time
 }
 
 type AllianceData struct {
 	Id        string
 	Name      string
+	StartTime time.Time
 	Players   int
 	Kills     int
 	KillFame  int
@@ -25,6 +28,7 @@ type GuildInputData struct {
 	Name         string
 	AllianceId   string
 	AllianceName string
+	StartTime    time.Time
 }
 
 type GuildData struct {
@@ -32,6 +36,7 @@ type GuildData struct {
 	Name         string
 	AllianceId   string
 	AllianceName string
+	StartTime    time.Time
 	Players      int
 	Kills        int
 	KillFame     int
@@ -40,9 +45,14 @@ type GuildData struct {
 	AverageIp    float64
 }
 
+type PlayerInputData struct {
+	StartTime time.Time
+}
+
 type PlayerData struct {
 	Id           string
 	Name         string
+	StartTime    time.Time
 	AllianceId   string
 	AllianceName string
 	GuildId      string
@@ -69,6 +79,7 @@ func mapAllianceData(alliances []*AllianceInputData, allKills []KillsResponse) [
 		result = append(result, &AllianceData{
 			Id:        alliance.Id,
 			Name:      alliance.Name,
+			StartTime: alliance.StartTime,
 			Players:   len(players[alliance.Name]),
 			Kills:     killCounts[alliance.Name],
 			KillFame:  killFame[alliance.Name],
@@ -93,6 +104,7 @@ func mapGuildData(guilds []*GuildInputData, allKills []KillsResponse) []*GuildDa
 		result = append(result, &GuildData{
 			Id:           guild.Id,
 			Name:         guild.Name,
+			StartTime:    guild.StartTime,
 			AllianceId:   guild.AllianceId,
 			AllianceName: guild.AllianceName,
 			Players:      len(players[guild.Name]),
@@ -107,7 +119,7 @@ func mapGuildData(guilds []*GuildInputData, allKills []KillsResponse) []*GuildDa
 	return result
 }
 
-func mapPlayerData(allKills []KillsResponse) []*PlayerData {
+func mapPlayerData(playerInputData *PlayerInputData, allKills []KillsResponse) []*PlayerData {
 	players := make(map[string]KillsPlayerResponse)
 	for _, kills := range allKills {
 		// GroupMembers, Killer, Victim has more information (such as average IP) than Participants - always override
@@ -137,6 +149,7 @@ func mapPlayerData(allKills []KillsResponse) []*PlayerData {
 		result = append(result, &PlayerData{
 			Id:           player.Id,
 			Name:         name,
+			StartTime:    playerInputData.StartTime,
 			AllianceId:   player.AllianceId,
 			AllianceName: player.AllianceName,
 			GuildId:      player.GuildId,

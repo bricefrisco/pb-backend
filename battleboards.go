@@ -210,8 +210,9 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 	allianceInputData := make([]*AllianceInputData, 0)
 	for _, alliance := range battle.Alliances {
 		allianceInputData = append(allianceInputData, &AllianceInputData{
-			Id:   alliance.Id,
-			Name: alliance.Name,
+			Id:        alliance.Id,
+			Name:      alliance.Name,
+			StartTime: battle.StartTime,
 		})
 	}
 
@@ -222,12 +223,17 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 			Name:         guild.Name,
 			AllianceId:   guild.AllianceId,
 			AllianceName: guild.AllianceName,
+			StartTime:    battle.StartTime,
 		})
+	}
+
+	playerInputData := &PlayerInputData{
+		StartTime: battle.StartTime,
 	}
 
 	allianceData := mapAllianceData(allianceInputData, allKills)
 	guildData := mapGuildData(guildInputData, allKills)
-	playerData := mapPlayerData(allKills)
+	playerData := mapPlayerData(playerInputData, allKills)
 	numPlayers := len(playerData)
 
 	battleRecord, err := b.mapBattle(battle, allianceData, guildData, numPlayers)
@@ -358,6 +364,7 @@ func (b *Battleboards) mapAlliances(battleId int, allianceData []*AllianceData) 
 		record := core.NewRecord(collection)
 		record.Set("battle", battleId)
 		record.Set("region", "americas")
+		record.Set("startTime", alliance.StartTime)
 		record.Set("allianceId", alliance.Id)
 		record.Set("allianceName", alliance.Name)
 		record.Set("allianceNameLower", strings.ToLower(alliance.Name))
@@ -365,7 +372,7 @@ func (b *Battleboards) mapAlliances(battleId int, allianceData []*AllianceData) 
 		record.Set("killFame", alliance.KillFame)
 		record.Set("deaths", alliance.Deaths)
 		record.Set("deathFame", alliance.DeathFame)
-		record.Set("players", alliance.Players)
+		record.Set("numPlayers", alliance.Players)
 		record.Set("averageIp", alliance.AverageIp)
 		records = append(records, record)
 	}
@@ -384,6 +391,7 @@ func (b *Battleboards) mapGuilds(battleId int, guildData []*GuildData) ([]*core.
 		record := core.NewRecord(collection)
 		record.Set("battle", battleId)
 		record.Set("region", "americas")
+		record.Set("startTime", guild.StartTime)
 		record.Set("guildId", guild.Id)
 		record.Set("guildName", guild.Name)
 		record.Set("guildNameLower", strings.ToLower(guild.Name))
@@ -412,6 +420,7 @@ func (b *Battleboards) mapPlayers(battleId int, playerData []*PlayerData) ([]*co
 		record := core.NewRecord(collection)
 		record.Set("battle", battleId)
 		record.Set("region", "americas")
+		record.Set("startTime", player.StartTime)
 		record.Set("playerId", player.Id)
 		record.Set("playerName", player.Name)
 		record.Set("playerNameLower", strings.ToLower(player.Name))
