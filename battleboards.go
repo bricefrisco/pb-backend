@@ -55,7 +55,6 @@ func (b *Battleboards) FetchNewBattles() error {
 			if strconv.Itoa(battle.Id) == lastBattleId {
 				fmt.Println("Reached last fetched battle:", lastBattleId)
 				reachedLastBattle = true
-				break // We've already processed up to this battle
 			}
 			record := mapBattleQueue(collection, battle)
 			records = append(records, record)
@@ -69,28 +68,25 @@ func (b *Battleboards) FetchNewBattles() error {
 		return nil
 	}
 
+	processed := 0
 	err = b.app.RunInTransaction(func(txApp core.App) error {
-		ids := make([]string, 0, len(records))
 		for _, record := range records {
-			ids = append(ids, record.Get("battleId").(string))
-		}
+			exists, err := txApp.FindRecordsByFilter(
+				"battle_queue",
+				"battleId = '"+record.Get("battleId").(string)+"'",
+				"",
+				1,
+				0)
+			if err != nil {
+				return err
+			}
 
-		recs, err := txApp.FindRecordsByIds("battle_queue", ids)
-		if err != nil {
-			return err
-		}
-
-		existingIds := make(map[string]bool)
-		for _, rec := range recs {
-			existingIds[rec.Get("battleId").(string)] = true
-		}
-
-		for _, record := range records {
-			if _, exists := existingIds[record.Get("battleId").(string)]; exists {
-				fmt.Println("Battle already in queue, skipping:", record.Get("battleId").(string))
+			if len(exists) > 0 {
+				fmt.Println("Battle already exists in queue, skipping:", record.Get("battleId").(string))
 				continue
 			}
 
+			processed += 1
 			if err = txApp.Save(record); err != nil {
 				return err
 			}
@@ -98,7 +94,7 @@ func (b *Battleboards) FetchNewBattles() error {
 		return nil
 	})
 
-	fmt.Println("Fetched", len(records), "new battles for processing.")
+	fmt.Println("Fetched", processed, "new battles for processing.")
 	return err
 }
 
