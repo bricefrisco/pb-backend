@@ -372,7 +372,7 @@ func (b *Battleboards) mapAlliances(battleId int, allianceData []*AllianceData) 
 		record.Set("killFame", alliance.KillFame)
 		record.Set("deaths", alliance.Deaths)
 		record.Set("deathFame", alliance.DeathFame)
-		record.Set("numPlayers", alliance.Players)
+		record.Set("players", alliance.Players)
 		record.Set("averageIp", alliance.AverageIp)
 		records = append(records, record)
 	}
