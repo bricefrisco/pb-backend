@@ -25,7 +25,7 @@ func NewBattleboards(app *pocketbase.PocketBase) *Battleboards {
 		app:           app,
 		albionAPI:     NewAlbionAPI(),
 		queue:         make(chan queueItem, 100),
-		maxIterations: 20,
+		maxIterations: 10,
 	}
 }
 
