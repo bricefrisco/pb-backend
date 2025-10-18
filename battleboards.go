@@ -22,9 +22,12 @@ type Battleboards struct {
 
 func NewBattleboards(app *pocketbase.PocketBase) *Battleboards {
 	return &Battleboards{
-		app:           app,
-		albionAPI:     NewAlbionAPI(),
-		queue:         make(chan queueItem, 100),
+		app:       app,
+		albionAPI: NewAlbionAPI(),
+		queue:     make(chan queueItem, 100),
+		// TODO: Probably need to increase this to account for battle board lagging behind
+		// Currently ~10 battles per minute, so this covers 50 minutes
+		// Ideally, it would cover a day (14,400 battles = 288 iterations), but that may be too many API calls
 		maxIterations: 10,
 	}
 }
@@ -46,7 +49,7 @@ func (b *Battleboards) FetchNewBattles() error {
 	records := make([]*core.Record, 0)
 
 	for !reachedLastBattle && iteration < b.maxIterations {
-		battles, err := b.albionAPI.FetchRecentBattles(iteration*50, 50)
+		battles, err := b.albionAPI.FetchRecentBattles(iteration*51, 51)
 		if err != nil {
 			return err
 		}
@@ -185,7 +188,7 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 		return err
 	}
 
-	limit := 50
+	limit := 51
 	offset := 0
 
 	allKills := make([]KillsResponse, 0)
