@@ -82,7 +82,6 @@ func (b *Battleboards) FetchNewBattles() error {
 			}
 
 			if len(exists) > 0 {
-				fmt.Println("Battle already exists in queue, skipping:", record.Get("battleId").(string))
 				continue
 			}
 
