@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"io"
 	"net/http"
 	"time"
@@ -101,7 +102,8 @@ func NewAlbionAPI() *AlbionAPI {
 }
 
 func (a *AlbionAPI) FetchRecentBattles(offset, limit int) ([]BattleResponse, error) {
-	url := fmt.Sprintf("%s/battles?offset=%d&limit=%d&sort=recent", a.baseUrl, offset, limit)
+	// Use a random UUID to prevent caching
+	url := fmt.Sprintf("%s/battles?offset=%d&limit=%d&sort=recent&guid=%s", a.baseUrl, offset, limit, uuid.New().String())
 	var resp []BattleResponse
 	if err := a.makeHttpGETCall(url, &resp); err != nil {
 		return nil, err

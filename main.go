@@ -42,7 +42,7 @@ func main() {
 			),
 		)
 
-		_, err := c.AddFunc("30 * * * * *", func() {
+		_, err := c.AddFunc("10 * * * * *", func() {
 			fmt.Println("Scheduler started")
 			err := backend.battleboards.FetchNewBattles()
 			if err != nil {
