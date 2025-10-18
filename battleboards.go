@@ -5,6 +5,7 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"strconv"
+	"strings"
 )
 
 type queueItem struct {
@@ -279,7 +280,12 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 
 	if err != nil {
 		fmt.Printf("Error processing battle %s: %v\n", battleId, err)
-		queue.Set("status", "failed")
+		if strings.Contains(err.Error(), "Value must be unique") {
+			queue.Set("status", "processed")
+		} else {
+			queue.Set("status", "failed")
+		}
+
 		err = b.app.Save(queue)
 		if err != nil {
 			// Unlikely, but the status would be left in the 'processing' state
