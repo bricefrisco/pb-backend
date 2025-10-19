@@ -23,14 +23,11 @@ type Battleboards struct {
 
 func NewBattleboards(app *pocketbase.PocketBase) *Battleboards {
 	return &Battleboards{
-		app:       app,
-		albionAPI: NewAlbionAPI(),
-		queue:     make(chan queueItem, 100),
-		// TODO: Probably need to increase this to account for battle board lagging behind
-		// Currently ~10 battles per minute, so this covers 50 minutes
-		// Ideally, it would cover a day (14,400 battles = 288 iterations), but that may be too many API calls
-		minIterations: 5,
-		maxIterations: 10,
+		app:           app,
+		albionAPI:     NewAlbionAPI(),
+		queue:         make(chan queueItem, 100),
+		minIterations: 10,
+		maxIterations: 20,
 	}
 }
 
