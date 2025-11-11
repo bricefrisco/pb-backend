@@ -1,4 +1,4 @@
-package main
+package albion_bb
 
 import (
 	"fmt"
