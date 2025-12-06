@@ -157,6 +157,7 @@ func buildHomeEmbed(record *core.Record, isUpdate bool) DiscordEmbed {
 	yearBuilt := record.GetInt("year_built")
 	subType := record.GetString("sub_type")
 	county := record.GetString("county")
+	status := record.GetString("status")
 	url := record.GetString("url")
 	imageURL := record.GetString("image_url")
 
@@ -180,6 +181,7 @@ func buildHomeEmbed(record *core.Record, isUpdate bool) DiscordEmbed {
 			{Name: "💰 Price", Value: fmt.Sprintf("$%s", formatNumber(price)), Inline: true},
 			{Name: "📍 Location", Value: fmt.Sprintf("%s, %s %s", city, state, zip), Inline: true},
 			{Name: "🏘️ Type", Value: subType, Inline: true},
+			{Name: "📊 Status", Value: status, Inline: true},
 			{Name: "🛏️ Beds", Value: fmt.Sprintf("%d", beds), Inline: true},
 			{Name: "🛁 Baths", Value: fmt.Sprintf("%.1f", baths), Inline: true},
 			{Name: "📐 Sq Ft", Value: formatNumber(sqft), Inline: true},

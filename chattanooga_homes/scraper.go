@@ -17,8 +17,8 @@ const (
 	// Base URL with filter parameters
 	baseURL = "https://my.flexmls.com/greaterchattanooganew/search/idx_links/20240916004638701725000000/listings"
 
-	// Default filter for Chattanooga area homes (no MlsStatus filter to see all statuses)
-	defaultFilter = "MlsId+Eq+'20240417141107895724000000'+And+CountyOrParish+Eq+'Hamilton','Marion'+And+PropertyType+Eq+'A'+And+CurrentPrice+Bt+250000.0,800000.0+And+\"General+Property+Information\".\"Lot+Size+Acres\"+Ge+2.0"
+	// Default filter for Chattanooga area homes (only Active/Pending/Contingent)
+	defaultFilter = "MlsId+Eq+'20240417141107895724000000'+And+CountyOrParish+Eq+'Hamilton','Marion'+And+MlsStatus+Eq+'Active','Pending','Contingent'+And+PropertyType+Eq+'A'+And+CurrentPrice+Bt+250000.0,800000.0+And+\"General+Property+Information\".\"Lot+Size+Acres\"+Ge+2.0"
 
 	// Pagination settings
 	pageLimit    = 10 // listings per page
