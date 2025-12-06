@@ -98,8 +98,9 @@ func createKillsCollection(app *pocketbase.PocketBase) error {
 	return app.Save(collection)
 }
 
-// SaveKills saves multiple kill records in a single transaction, skipping duplicates
-func SaveKills(app *pocketbase.PocketBase, kills []KillResponse) (saved int, skipped int, errCount int) {
+// SaveKills saves multiple kill records in a single transaction, skipping duplicates.
+// existingIds is a set of event IDs that already exist in the database.
+func SaveKills(app *pocketbase.PocketBase, kills []KillResponse, existingIds map[int]bool) (saved int, skipped int, errCount int) {
 	if len(kills) == 0 {
 		return 0, 0, 0
 	}
@@ -115,13 +116,10 @@ func SaveKills(app *pocketbase.PocketBase, kills []KillResponse) (saved int, ski
 	}
 	duplicatesInBatch := len(kills) - len(uniqueKills)
 
-	// Get existing event IDs to filter duplicates from database
-	existingIds := getExistingEventIds(app, uniqueKills)
-
 	// Filter out kills that already exist in database
 	newKills := make([]KillResponse, 0)
 	for _, kill := range uniqueKills {
-		if _, exists := existingIds[kill.EventId]; exists {
+		if existingIds[kill.EventId] {
 			skipped++
 		} else {
 			newKills = append(newKills, kill)
@@ -161,33 +159,25 @@ func SaveKills(app *pocketbase.PocketBase, kills []KillResponse) (saved int, ski
 	return len(newKills), skipped, 0
 }
 
-// getExistingEventIds returns a set of event IDs that already exist in the database
-func getExistingEventIds(app *pocketbase.PocketBase, kills []KillResponse) map[int]bool {
+// GetRecentEventIds fetches the most recent event IDs from the database in a single query.
+// Returns a set of event IDs for fast lookup.
+func GetRecentEventIds(app *pocketbase.PocketBase, limit int) map[int]bool {
 	existingIds := make(map[int]bool)
 
-	for _, kill := range kills {
-		// Use string formatting to avoid scientific notation in query
-		filter := fmt.Sprintf("event_id = %d", kill.EventId)
-		existing, _ := app.FindFirstRecordByFilter("kills", filter)
-		if existing != nil {
-			existingIds[kill.EventId] = true
-		}
+	records, err := app.FindRecordsByFilter(
+		"kills",
+		"",           // no filter - get all
+		"-timestamp", // sort by timestamp descending (most recent first)
+		limit,
+		0,
+	)
+	if err != nil {
+		return existingIds
 	}
 
-	return existingIds
-}
-
-// CheckExistingEventIds returns a map of which event IDs already exist in the database
-func CheckExistingEventIds(app *pocketbase.PocketBase, eventIds []int) map[int]bool {
-	existingIds := make(map[int]bool)
-
-	for _, eventId := range eventIds {
-		// Use string formatting to avoid scientific notation in query
-		filter := fmt.Sprintf("event_id = %d", eventId)
-		existing, _ := app.FindFirstRecordByFilter("kills", filter)
-		if existing != nil {
-			existingIds[eventId] = true
-		}
+	for _, record := range records {
+		eventId := record.GetInt("event_id")
+		existingIds[eventId] = true
 	}
 
 	return existingIds

@@ -238,17 +238,15 @@ func (a *AlbionAPI) FetchBattleKills(battleId, offset, limit int) ([]BattleKillR
 	return resp, nil
 }
 
-// ExistsChecker is a function that checks which event IDs already exist in the database
-type ExistsChecker func(eventIds []int) map[int]bool
-
 // maxPagesToFetch limits pagination to prevent infinite fetching on empty database
 const maxPagesToFetch = 5
 
 // FetchRecentKillsUntilOverlap fetches kills, paginating only when ALL results are new.
+// existingIds is a set of event IDs that already exist in the database (for fast lookup).
 // This ensures we catch up if we've fallen behind, but don't unnecessarily paginate.
 // Uses a consistent GUID across all pages and retries.
 // Limited to maxPagesToFetch pages to prevent infinite pagination on empty DB.
-func (a *AlbionAPI) FetchRecentKillsUntilOverlap(pageSize int, checker ExistsChecker) ([]KillResponse, error) {
+func (a *AlbionAPI) FetchRecentKillsUntilOverlap(pageSize int, existingIds map[int]bool) ([]KillResponse, error) {
 	guid := uuid.New().String()
 	allKills := make([]KillResponse, 0)
 	offset := 0
@@ -273,16 +271,10 @@ func (a *AlbionAPI) FetchRecentKillsUntilOverlap(pageSize int, checker ExistsChe
 
 		allKills = append(allKills, kills...)
 
-		// Check how many of these kills already exist in the database
-		eventIds := make([]int, len(kills))
-		for i, k := range kills {
-			eventIds[i] = k.EventId
-		}
-		existingIds := checker(eventIds)
-
+		// Check how many of these kills already exist (in-memory lookup)
 		newCount := 0
-		for _, id := range eventIds {
-			if !existingIds[id] {
+		for _, kill := range kills {
+			if !existingIds[kill.EventId] {
 				newCount++
 			}
 		}

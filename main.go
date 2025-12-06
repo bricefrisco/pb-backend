@@ -22,23 +22,23 @@ func main() {
 
 		// Fetch kills every 10 seconds
 		go func() {
-			// Existence checker that queries the database
-			existsChecker := func(eventIds []int) map[int]bool {
-				return albion_bb.CheckExistingEventIds(app, eventIds)
-			}
-
 			ticker := time.NewTicker(10 * time.Second)
 			defer ticker.Stop()
 
 			for range ticker.C {
-				kills, err := api.FetchRecentKillsUntilOverlap(51, existsChecker)
+				// Get recent event IDs from DB (single query)
+				existingIds := albion_bb.GetRecentEventIds(app, 500)
+
+				// Fetch kills, using existingIds to determine pagination
+				kills, err := api.FetchRecentKillsUntilOverlap(51, existingIds)
 				if err != nil {
 					log.Printf("Error fetching recent kills: %v", err)
 					// Continue anyway - we may have partial results
 				}
 
 				if len(kills) > 0 {
-					saved, skipped, errors := albion_bb.SaveKills(app, kills)
+					// Save kills, reusing the same existingIds
+					saved, skipped, errors := albion_bb.SaveKills(app, kills, existingIds)
 					log.Printf("Kills: %d fetched, %d saved, %d skipped (duplicates), %d errors", len(kills), saved, skipped, errors)
 				}
 			}
