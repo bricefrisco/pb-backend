@@ -68,7 +68,7 @@ type PlayerData struct {
 	Players      int
 }
 
-func mapAllianceData(alliances []*AllianceInputData, allKills []KillsResponse) []*AllianceData {
+func mapAllianceData(alliances []*AllianceInputData, allKills []BattleKillResponse) []*AllianceData {
 	result := make([]*AllianceData, 0)
 	players := mapAlliancePlayers(allKills)
 	killCounts := mapAllianceKillCounts(allKills)
@@ -93,7 +93,7 @@ func mapAllianceData(alliances []*AllianceInputData, allKills []KillsResponse) [
 	return result
 }
 
-func mapGuildData(guilds []*GuildInputData, allKills []KillsResponse) []*GuildData {
+func mapGuildData(guilds []*GuildInputData, allKills []BattleKillResponse) []*GuildData {
 	result := make([]*GuildData, 0)
 	players := mapGuildPlayers(allKills)
 	killCounts := mapGuildKillCounts(allKills)
@@ -120,8 +120,8 @@ func mapGuildData(guilds []*GuildInputData, allKills []KillsResponse) []*GuildDa
 	return result
 }
 
-func mapPlayerData(playerInputData *PlayerInputData, allKills []KillsResponse) []*PlayerData {
-	players := make(map[string]KillsPlayerResponse)
+func mapPlayerData(playerInputData *PlayerInputData, allKills []BattleKillResponse) []*PlayerData {
+	players := make(map[string]BattleKillPlayerResponse)
 	for _, kills := range allKills {
 		// GroupMembers, Killer, Victim has more information (such as average IP) than Participants - always override
 		for _, member := range kills.GroupMembers {
@@ -169,7 +169,7 @@ func mapPlayerData(playerInputData *PlayerInputData, allKills []KillsResponse) [
 	return result
 }
 
-func mapAllianceKillCounts(allKills []KillsResponse) map[string]int {
+func mapAllianceKillCounts(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		if kills.Killer.AllianceName == "" {
@@ -186,7 +186,7 @@ func mapAllianceKillCounts(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapGuildKillCounts(allKills []KillsResponse) map[string]int {
+func mapGuildKillCounts(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		if kills.Killer.GuildName == "" {
@@ -203,7 +203,7 @@ func mapGuildKillCounts(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapPlayerKillCounts(allKills []KillsResponse) map[string]int {
+func mapPlayerKillCounts(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		_, exists := result[kills.Killer.Name]
@@ -215,7 +215,7 @@ func mapPlayerKillCounts(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapAllianceKillFame(allKills []KillsResponse) map[string]int {
+func mapAllianceKillFame(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		for _, member := range kills.GroupMembers {
@@ -231,7 +231,7 @@ func mapAllianceKillFame(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapGuildKillFame(allKills []KillsResponse) map[string]int {
+func mapGuildKillFame(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		for _, member := range kills.GroupMembers {
@@ -247,7 +247,7 @@ func mapGuildKillFame(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapPlayerKillFame(allKills []KillsResponse) map[string]int {
+func mapPlayerKillFame(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		for _, member := range kills.GroupMembers {
@@ -260,7 +260,7 @@ func mapPlayerKillFame(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapAllianceDeathFame(allKills []KillsResponse) map[string]int {
+func mapAllianceDeathFame(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		if kills.Victim.AllianceName == "" {
@@ -276,7 +276,7 @@ func mapAllianceDeathFame(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapGuildDeathFame(allKills []KillsResponse) map[string]int {
+func mapGuildDeathFame(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		if kills.Victim.GuildName == "" {
@@ -292,7 +292,7 @@ func mapGuildDeathFame(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapPlayerDeathFame(allKills []KillsResponse) map[string]int {
+func mapPlayerDeathFame(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		_, exists := result[kills.Victim.Name]
@@ -304,7 +304,7 @@ func mapPlayerDeathFame(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapAllianceDeathCounts(allKills []KillsResponse) map[string]int {
+func mapAllianceDeathCounts(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		if kills.Victim.AllianceName == "" {
@@ -321,7 +321,7 @@ func mapAllianceDeathCounts(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapGuildDeathCounts(allKills []KillsResponse) map[string]int {
+func mapGuildDeathCounts(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		if kills.Victim.GuildName == "" {
@@ -338,7 +338,7 @@ func mapGuildDeathCounts(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapPlayerDeathCounts(allKills []KillsResponse) map[string]int {
+func mapPlayerDeathCounts(allKills []BattleKillResponse) map[string]int {
 	result := make(map[string]int)
 	for _, kills := range allKills {
 		_, exists := result[kills.Victim.Name]
@@ -350,7 +350,7 @@ func mapPlayerDeathCounts(allKills []KillsResponse) map[string]int {
 	return result
 }
 
-func mapAverageIp(players map[string]KillsPlayerResponse) float64 {
+func mapAverageIp(players map[string]BattleKillPlayerResponse) float64 {
 	count := 0
 	sum := 0.0
 	for _, player := range players {
@@ -367,8 +367,8 @@ func mapAverageIp(players map[string]KillsPlayerResponse) float64 {
 	return sum / float64(count)
 }
 
-func mapAlliancePlayers(allKills []KillsResponse) map[string]map[string]KillsPlayerResponse {
-	result := make(map[string]map[string]KillsPlayerResponse)
+func mapAlliancePlayers(allKills []BattleKillResponse) map[string]map[string]BattleKillPlayerResponse {
+	result := make(map[string]map[string]BattleKillPlayerResponse)
 	for _, kills := range allKills {
 		// Other battleboards (AlbionBB, official API) do not include participants in
 		// total player count. This may cause a discrepancy, but it seems more accurate to include them.
@@ -380,7 +380,7 @@ func mapAlliancePlayers(allKills []KillsResponse) map[string]map[string]KillsPla
 				continue
 			}
 			if _, exists := result[player.AllianceName]; !exists {
-				result[player.AllianceName] = make(map[string]KillsPlayerResponse)
+				result[player.AllianceName] = make(map[string]BattleKillPlayerResponse)
 			}
 
 			// Participants stores item power while GroupMembers do not, so
@@ -397,8 +397,8 @@ func mapAlliancePlayers(allKills []KillsResponse) map[string]map[string]KillsPla
 	return result
 }
 
-func mapGuildPlayers(allKills []KillsResponse) map[string]map[string]KillsPlayerResponse {
-	result := make(map[string]map[string]KillsPlayerResponse)
+func mapGuildPlayers(allKills []BattleKillResponse) map[string]map[string]BattleKillPlayerResponse {
+	result := make(map[string]map[string]BattleKillPlayerResponse)
 	for _, kills := range allKills {
 		// Other battleboards (AlbionBB, official API) do not include participants in
 		// total player count. This may cause a discrepancy, but it seems more accurate to include them.
@@ -410,7 +410,7 @@ func mapGuildPlayers(allKills []KillsResponse) map[string]map[string]KillsPlayer
 				continue
 			}
 			if _, exists := result[player.GuildName]; !exists {
-				result[player.GuildName] = make(map[string]KillsPlayerResponse)
+				result[player.GuildName] = make(map[string]BattleKillPlayerResponse)
 			}
 
 			// Participants stores item power while GroupMembers do not, so
@@ -427,7 +427,7 @@ func mapGuildPlayers(allKills []KillsResponse) map[string]map[string]KillsPlayer
 	return result
 }
 
-func mapPlayerDamage(allKills []KillsResponse) map[string]float64 {
+func mapPlayerDamage(allKills []BattleKillResponse) map[string]float64 {
 	result := make(map[string]float64)
 	for _, kills := range allKills {
 		for _, participant := range kills.Participants {
@@ -441,7 +441,7 @@ func mapPlayerDamage(allKills []KillsResponse) map[string]float64 {
 	return result
 }
 
-func mapPlayerHealing(allKills []KillsResponse) map[string]float64 {
+func mapPlayerHealing(allKills []BattleKillResponse) map[string]float64 {
 	result := make(map[string]float64)
 	for _, kills := range allKills {
 		for _, participant := range kills.Participants {

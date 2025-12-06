@@ -2,10 +2,11 @@ package albion_bb
 
 import (
 	"fmt"
-	"github.com/pocketbase/pocketbase"
-	"github.com/pocketbase/pocketbase/core"
 	"strconv"
 	"strings"
+
+	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 type queueItem struct {
@@ -193,9 +194,9 @@ func (b *Battleboards) processBattle(queueId string, battleId string) error {
 	limit := 51
 	offset := 0
 
-	allKills := make([]KillsResponse, 0)
+	allKills := make([]BattleKillResponse, 0)
 	for offset < battle.TotalKills {
-		kills, err := b.albionAPI.FetchRecentKills(battle.Id, offset, limit)
+		kills, err := b.albionAPI.FetchBattleKills(battle.Id, offset, limit)
 		if err != nil {
 			return err
 		}
@@ -439,7 +440,7 @@ func (b *Battleboards) mapPlayers(battleId int, playerData []*PlayerData) ([]*co
 	return records, nil
 }
 
-func (b *Battleboards) mapKills(battleId int, kills []KillsResponse) ([]*core.Record, error) {
+func (b *Battleboards) mapKills(battleId int, kills []BattleKillResponse) ([]*core.Record, error) {
 	collection, err := b.app.FindCollectionByNameOrId("battle_kills")
 	if err != nil {
 		return nil, err
