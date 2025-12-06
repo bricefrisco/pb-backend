@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/pocketbase/pocketbase"
@@ -15,6 +17,12 @@ import (
 // Discord API endpoints
 const (
 	discordAPIBase = "https://discord.com/api/v10"
+)
+
+var (
+	discordSendMu     sync.Mutex
+	lastDiscordSendAt time.Time
+	discordMinSpacing = 1 * time.Second // ~1 msg/sec
 )
 
 // DiscordConfig holds the Discord bot configuration
@@ -128,8 +136,8 @@ func PostUpdateToDiscordThread(app *pocketbase.PocketBase, record *core.Record, 
 	}
 
 	// Create or get thread from the original message
-	threadID, err := createThreadFromMessage(config, config.HomesChannelID, messageID,
-		fmt.Sprintf("Updates: %s", record.GetString("street")))
+	threadName := listingTitle(record)
+	threadID, err := createThreadFromMessage(config, config.HomesChannelID, messageID, threadName)
 	if err != nil {
 		return fmt.Errorf("failed to create thread: %w", err)
 	}
@@ -145,7 +153,6 @@ func PostUpdateToDiscordThread(app *pocketbase.PocketBase, record *core.Record, 
 
 // buildHomeEmbed creates a Discord embed for a home listing
 func buildHomeEmbed(record *core.Record, isUpdate bool) DiscordEmbed {
-	street := record.GetString("street")
 	city := record.GetString("city")
 	state := record.GetString("state")
 	zip := record.GetString("zip")
@@ -160,11 +167,7 @@ func buildHomeEmbed(record *core.Record, isUpdate bool) DiscordEmbed {
 	status := record.GetString("status")
 	url := record.GetString("url")
 	imageURL := record.GetString("image_url")
-
-	title := fmt.Sprintf("🏠 %s", street)
-	if isUpdate {
-		title = fmt.Sprintf("📝 Updated: %s", street)
-	}
+	title := listingTitle(record)
 
 	// Green for new, blue for update
 	color := 0x2ECC71 // Green
@@ -201,7 +204,7 @@ func buildHomeEmbed(record *core.Record, isUpdate bool) DiscordEmbed {
 
 // buildUpdateEmbed creates a Discord embed for listing updates
 func buildUpdateEmbed(record *core.Record, changes []FieldChange) DiscordEmbed {
-	street := record.GetString("street")
+	title := listingTitle(record)
 
 	// Build fields for each change with old -> new format
 	var fields []DiscordEmbedField
@@ -219,11 +222,17 @@ func buildUpdateEmbed(record *core.Record, changes []FieldChange) DiscordEmbed {
 	}
 
 	return DiscordEmbed{
-		Title:     fmt.Sprintf("📝 %s", street),
+		Title:     title,
 		Color:     0xF39C12, // Orange
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Fields:    fields,
 	}
+}
+
+// listingTitle produces a consistent title for embeds and threads
+func listingTitle(record *core.Record) string {
+	street := record.GetString("street")
+	return fmt.Sprintf("🏠 %s", street)
 }
 
 // formatFieldName converts field names to display names with emojis
@@ -296,32 +305,66 @@ func sendDiscordMessage(config *DiscordConfig, channelID string, message Discord
 		return "", err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
-	if err != nil {
-		return "", err
-	}
+	// Ensure we pace requests to ~1 req/sec (half of the common 5/5s route limit)
+	waitForDiscordSlot()
 
-	req.Header.Set("Authorization", "Bot "+config.BotToken)
-	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 15 * time.Second}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
+	// Retry on 429 with respect to retry_after; limit total attempts
+	const maxAttempts = 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Authorization", "Bot "+config.BotToken)
+		req.Header.Set("Content-Type", "application/json")
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		resp, err := client.Do(req)
+		if err != nil {
+			return "", err
+		}
+
 		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+			var msgResp DiscordMessageResponse
+			if err := json.Unmarshal(respBody, &msgResp); err != nil {
+				return "", err
+			}
+			return msgResp.ID, nil
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			// Simple backoff: wait 5x the minimum spacing, then retry
+			sleepFor := 5 * discordMinSpacing
+			log.Printf("[DISCORD] Rate limited (attempt %d/%d), sleeping for %v", attempt, maxAttempts, sleepFor)
+			time.Sleep(sleepFor)
+			waitForDiscordSlot()
+			continue
+		}
+
+		// Non-retryable status
 		return "", fmt.Errorf("discord API error: %s - %s", resp.Status, string(respBody))
 	}
 
-	var msgResp DiscordMessageResponse
-	if err := json.NewDecoder(resp.Body).Decode(&msgResp); err != nil {
-		return "", err
-	}
+	return "", fmt.Errorf("discord API error: exceeded retries for rate limit")
+}
 
-	return msgResp.ID, nil
+// waitForDiscordSlot enforces a minimal spacing between Discord requests to reduce rate limiting.
+func waitForDiscordSlot() {
+	discordSendMu.Lock()
+	defer discordSendMu.Unlock()
+
+	now := time.Now()
+	if !lastDiscordSendAt.IsZero() {
+		elapsed := now.Sub(lastDiscordSendAt)
+		if elapsed < discordMinSpacing {
+			time.Sleep(discordMinSpacing - elapsed)
+		}
+	}
+	lastDiscordSendAt = time.Now()
 }
 
 // createThreadFromMessage creates a thread from an existing message
