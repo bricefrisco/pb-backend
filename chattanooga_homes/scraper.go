@@ -21,9 +21,8 @@ const (
 	defaultFilter = "MlsId+Eq+'20240417141107895724000000'+And+CountyOrParish+Eq+'Hamilton','Marion'+And+MlsStatus+Eq+'Active','Pending','Contingent'+And+PropertyType+Eq+'A'+And+CurrentPrice+Bt+250000.0,800000.0+And+\"General+Property+Information\".\"Lot+Size+Acres\"+Ge+2.0"
 
 	// Pagination settings
-	pageLimit    = 10 // listings per page
-	maxPages     = 1  // only fetch first page since we poll every minute
-	pageLoadWait = 8 * time.Second
+	pageLimit = 10 // listings per page
+	maxPages  = 1  // only fetch first page since we poll every minute
 
 	// Realistic User Agent
 	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -37,7 +36,7 @@ func NewScraper() *Scraper {
 
 // buildURL constructs the URL for a specific page
 func buildURL(page int) string {
-	return fmt.Sprintf("%s?_filter=%s&list_view=summary&page=%d&_limit=%d",
+	return fmt.Sprintf("%s?_filter=%s&list_view=summary&page=%d&_limit=%d&sort_id=new_or_recently_changed_first",
 		baseURL, defaultFilter, page, pageLimit)
 }
 
