@@ -11,7 +11,7 @@ import (
 
 func main() {
 	// Flags used for development; should all be true for production
-	enableAlbion := true
+	enableAlbion := false
 	enableChattanoogaHomes := true
 
 	app := pocketbase.New()
